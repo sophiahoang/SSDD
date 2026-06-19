@@ -1,0 +1,19 @@
+# Earth Engine / Google credentials -- never commit these
+.config/
+*credentials*
+*.json.key
+
+# Outputs
+naip_out/
+*.tif
+*.tiff
+NAIP_fire_availability.csv
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# OS
+Thumbs.db
+.DS_Store
