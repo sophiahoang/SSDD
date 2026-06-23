@@ -28,19 +28,33 @@ import geopandas as gpd
 # ----------------------------------------------------------------------------
 # CONFIG -- edit these to match your data
 # ----------------------------------------------------------------------------
-EE_PROJECT   = "your-gcp-project-id"          # from earthengine / cloud console
+EE_PROJECT   = "ssdd-499921"                  # from earthengine / cloud console
 INPUT_PATH   = r"C:\Users\shoang12\Downloads\AllFires_1kmBuffer\AllFires_1kmBuffer.shp"
 LAYER_NAME   = None        # None = first/only layer (shapefiles have one)
 NAME_FIELD   = "FIRE_NAME" # confirmed in this dataset
 IGNITE_FIELD = "ALARM_DATE"# confirmed in this dataset
 CONTAIN_FIELD= "CONT_DATE" # confirmed in this dataset (falls back to ignite)
 STATE_FIELD  = "STATE"     # set STATE_FILTER below to limit which fires run
-STATE_FILTER = None        # e.g. ["CA"] for CA-only; None = all 76 fires
-DRIVE_FOLDER = "NAIP_fire_exports"
-EXPORT_SCALE = 1           # meters/pixel for export (NAIP native ~0.6-1 m)
+STATE_FILTER = ["CA"]      # e.g. ["CA"] for CA-only; None = all 76 fires
+ONLY_FIRES   = ["RIVER"]   # test-batch: run only these FIRE_NAMEs. Set to None
+                           # to process every fire that passes STATE_FILTER.
+# Resolution: by default each image is written at its OWN native scale and
+# native UTM projection -- highest possible quality, no reprojection blur.
+# (Recent CA NAIP is 0.6 m; older years are 1 m.)
+HIRES_MAX_KM2 = None       # None = always native res. If set (e.g. 200), fires
+                           # LARGER than this many km2 are downsampled to
+                           # COARSE_SCALE so the mega-fires stay manageable.
+COARSE_SCALE  = 3          # meters/pixel used only for fires above HIRES_MAX_KM2
 MANIFEST_CSV = r"C:\Users\shoang12\Downloads\NAIP_fire_availability.csv"
-MANIFEST_ONLY= True        # True = build the availability table only (no image
+MANIFEST_ONLY= False       # True = build the availability table only (no image
                            # exports). Flip to False once you like the table.
+
+# --- where the GeoTIFFs go when MANIFEST_ONLY is False ---
+EXPORT_TARGET = "onedrive" # "onedrive" = download locally into OneDrive (syncs
+                           #              to the cloud automatically)
+                           # "drive"    = export to Google Drive instead
+ONEDRIVE_BASE = r"C:\Users\shoang12\OneDrive - Cal Poly\NAIP_fire_imagery"
+DRIVE_FOLDER  = "NAIP_fire_exports"   # only used if EXPORT_TARGET == "drive"
 # ----------------------------------------------------------------------------
 
 ee.Initialize(project=EE_PROJECT)
@@ -57,8 +71,8 @@ def nearest_naip(ee_geom, date_str, direction):
     """
     Find the NAIP acquisition nearest to date_str on the given side.
     direction = 'before' or 'after'.
-    Returns (ee.Image mosaic, year, acquisition_date 'YYYY-MM-DD').
-    Returns (None, None, None) if no NAIP exists on that side.
+    Returns (mosaic, year, acq_date, native_scale_m, native_crs).
+    Returns (None, None, None, None, None) if no NAIP exists on that side.
     """
     over_aoi = NAIP.filterBounds(ee_geom)
 
@@ -69,7 +83,7 @@ def nearest_naip(ee_geom, date_str, direction):
 
     n = coll.size().getInfo()
     if n == 0:
-        return None, None, None
+        return None, None, None, None, None
 
     # Take the single nearest acquisition date, then mosaic all DOQQ tiles
     # from that same campaign year so the perimeter is fully covered.
@@ -78,30 +92,52 @@ def nearest_naip(ee_geom, date_str, direction):
     year     = nearest_date.get("year").getInfo()
     acq_date = nearest_date.format("YYYY-MM-dd").getInfo()
 
+    # Native resolution + projection of the source tile -- export at THIS for
+    # full quality (mosaic() otherwise defaults to a 1-degree EPSG:4326 grid).
+    proj = nearest.select(0).projection()
+    native_scale = proj.nominalScale().getInfo()
+    native_crs   = proj.crs().getInfo()
+
     same_year = over_aoi.filter(ee.Filter.calendarRange(year, year, "year"))
     mosaic = same_year.mosaic().clip(ee_geom)
-    return mosaic, year, acq_date
+    return mosaic, year, acq_date, native_scale, native_crs
 
 
-def export_clip(image, ee_geom, filename):
-    """Queue a Drive export of the clipped image."""
-    task = ee.batch.Export.image.toDrive(
-        image=image.toUint8(),          # NAIP DOQQ is 8-bit
-        description=filename[:100],      # EE caps description length
-        folder=DRIVE_FOLDER,
-        fileNamePrefix=filename,
-        region=ee_geom,
-        scale=EXPORT_SCALE,
-        crs="EPSG:4326",
-        maxPixels=1e13,
-    )
-    task.start()
-    print(f"  -> queued export: {filename}")
-    # --- Local-disk alternative for small fires (uncomment, needs geemap) ---
-    # import geemap, os
-    # geemap.download_ee_image(
-    #     image.toUint8(), filename=os.path.join("naip_out", filename + ".tif"),
-    #     region=ee_geom, scale=EXPORT_SCALE, crs="EPSG:4326")
+def deliver(image, ee_geom, fire_folder, period, year, scale, crs):
+    """
+    Write one clipped NAIP image for a fire at the given scale (m) and crs.
+    fire_folder = e.g. 'EATON_2025'; period = 'pre' or 'post'.
+    Routes to OneDrive (local download) or Google Drive per EXPORT_TARGET.
+    """
+    out_name = f"{period}_{year}"   # e.g. pre_2022.tif / post_2022.tif
+
+    if EXPORT_TARGET == "onedrive":
+        import geemap
+        out_dir = os.path.join(ONEDRIVE_BASE, fire_folder)
+        os.makedirs(out_dir, exist_ok=True)
+        out_path = os.path.join(out_dir, out_name + ".tif")
+        if os.path.exists(out_path):
+            print(f"  -> exists, skipping: {fire_folder}\\{out_name}.tif")
+            return
+        # download_ee_image auto-tiles large images so big fires still work.
+        geemap.download_ee_image(
+            image.toUint8(), filename=out_path,
+            region=ee_geom, scale=scale, crs=crs)
+        print(f"  -> saved: {fire_folder}\\{out_name}.tif  ({scale} m, {crs})")
+
+    else:  # "drive"
+        task = ee.batch.Export.image.toDrive(
+            image=image.toUint8(),
+            description=f"{fire_folder}_{out_name}"[:100],
+            folder=DRIVE_FOLDER,
+            fileNamePrefix=f"{fire_folder}_{out_name}",
+            region=ee_geom,
+            scale=scale,
+            crs=crs,
+            maxPixels=1e13,
+        )
+        task.start()
+        print(f"  -> queued Drive export: {fire_folder}_{out_name}  ({scale} m)")
 
 
 def safe_name(value, fid):
@@ -113,6 +149,9 @@ def main():
     gdf = gpd.read_file(INPUT_PATH, layer=LAYER_NAME)
     if STATE_FILTER:
         gdf = gdf[gdf[STATE_FIELD].isin(STATE_FILTER)].copy()
+    if ONLY_FIRES:
+        gdf = gdf[gdf[NAME_FIELD].isin(ONLY_FIRES)].copy()
+    gdf["__km2"] = gdf.geometry.area / 1e6   # area in projected CRS (pre-reproj)
     gdf = gdf.to_crs("EPSG:4326")  # GEE expects lon/lat
 
     print(f"Loaded {len(gdf)} fire features from {INPUT_PATH}\n")
@@ -128,12 +167,19 @@ def main():
 
         ignite_str  = str(ignite)[:10]   # 'YYYY-MM-DD'
         contain_str = str(contain)[:10]
+        # Folder named for the fire + its year, so duplicate names (e.g. two
+        # VALLEY fires, two CREEK fires) don't collide.
+        fire_folder = f"{name}_{ignite_str[:4]}"
         ee_geom = to_ee_geometry(row.geometry)
 
         print(f"[{name}]  ignite={ignite_str}  contain={contain_str}")
 
-        pre_img,  pre_yr,  pre_date  = nearest_naip(ee_geom, ignite_str,  "before")
-        post_img, post_yr, post_date = nearest_naip(ee_geom, contain_str, "after")
+        pre_img,  pre_yr,  pre_date,  pre_scale,  pre_crs  = nearest_naip(ee_geom, ignite_str,  "before")
+        post_img, post_yr, post_date, post_scale, post_crs = nearest_naip(ee_geom, contain_str, "after")
+
+        # Downsample only if this fire is bigger than the hi-res threshold.
+        km2 = row["__km2"]
+        downsample = HIRES_MAX_KM2 is not None and km2 > HIRES_MAX_KM2
 
         # --- availability record for this fire ---
         gap = (post_yr - pre_yr) if (pre_yr and post_yr) else ""
@@ -155,12 +201,15 @@ def main():
 
         if not MANIFEST_ONLY:
             if pre_img is not None:
-                export_clip(pre_img, ee_geom, f"{name}_pre_{pre_yr}")
+                scale = COARSE_SCALE if downsample else pre_scale
+                deliver(pre_img, ee_geom, fire_folder, "pre", pre_yr, scale, pre_crs)
             if post_img is not None:
-                export_clip(post_img, ee_geom, f"{name}_post_{post_yr}")
+                scale = COARSE_SCALE if downsample else post_scale
+                deliver(post_img, ee_geom, fire_folder, "post", post_yr, scale, post_crs)
 
-    # --- write the availability table ---
-    if manifest:
+    # --- write the availability table (skip for test batches so we don't
+    #     overwrite the full 76-fire master CSV) ---
+    if manifest and not ONLY_FIRES:
         with open(MANIFEST_CSV, "w", newline="", encoding="utf-8") as f:
             w = csv.DictWriter(f, fieldnames=list(manifest[0].keys()))
             w.writeheader()
@@ -170,6 +219,9 @@ def main():
     if MANIFEST_ONLY:
         print("MANIFEST_ONLY is True -- no images exported. "
               "Review the CSV, then set MANIFEST_ONLY = False to export GeoTIFFs.")
+    elif EXPORT_TARGET == "onedrive":
+        print(f"\nDone. GeoTIFFs saved under {ONEDRIVE_BASE}\\<FIRE>_<year>\\ "
+              "and syncing to OneDrive.")
     else:
         print("\nExports queued. Track progress in the Tasks tab at "
               "https://code.earthengine.google.com/tasks")

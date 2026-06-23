@@ -11,17 +11,18 @@
 
 $ErrorActionPreference = "Stop"
 
+# Clone into a USER-WRITABLE folder (a --name clone would target Program Files,
+# which needs Administrator rights and fails silently without them).
 $conda   = "C:\Program Files\ArcGIS\Pro\bin\Python\Scripts\conda.exe"
-$envName = "fire-naip"
-$envPath = "C:\Program Files\ArcGIS\Pro\bin\Python\envs\$envName"
+$envPath = "C:\Users\shoang12\fire-naip-env"
 $py      = "$envPath\python.exe"
 $pip     = "$envPath\Scripts\pip.exe"
 
 Write-Host "`n=== Step 1/3: clone the ArcGIS Python environment ===" -ForegroundColor Cyan
 if (Test-Path $py) {
-    Write-Host "Env '$envName' already exists -- skipping clone." -ForegroundColor Yellow
+    Write-Host "Env already exists at $envPath -- skipping clone." -ForegroundColor Yellow
 } else {
-    & $conda create --clone arcgispro-py3 --name $envName --yes
+    & $conda create --clone arcgispro-py3 --prefix $envPath --yes
 }
 
 Write-Host "`n=== Step 2/3: install earthengine-api + geemap ===" -ForegroundColor Cyan

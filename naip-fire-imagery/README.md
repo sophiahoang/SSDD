@@ -36,7 +36,7 @@ Then open `naip_prepost_fire.py` and set:
 ## Run
 
 ```powershell
-& "C:\Program Files\ArcGIS\Pro\bin\Python\envs\fire-naip\python.exe" naip_prepost_fire.py
+& "C:\Users\shoang12\fire-naip-env\python.exe" naip_prepost_fire.py
 ```
 
 - `MANIFEST_ONLY = True` (default): writes the availability CSV only — fast.
