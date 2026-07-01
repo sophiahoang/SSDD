@@ -35,8 +35,8 @@ NAME_FIELD   = "FIRE_NAME" # confirmed in this dataset
 IGNITE_FIELD = "ALARM_DATE"# confirmed in this dataset
 CONTAIN_FIELD= "CONT_DATE" # confirmed in this dataset (falls back to ignite)
 STATE_FIELD  = "STATE"     # set STATE_FILTER below to limit which fires run
-STATE_FILTER = ["CA"]      # e.g. ["CA"] for CA-only; None = all 76 fires
-ONLY_FIRES   = ["RIVER"]   # test-batch: run only these FIRE_NAMEs. Set to None
+STATE_FILTER = None        # e.g. ["CA"] for CA-only; None = all 76 fires
+ONLY_FIRES   = None        # test-batch: run only these FIRE_NAMEs. Set to None
                            # to process every fire that passes STATE_FILTER.
 # Resolution: by default each image is written at its OWN native scale and
 # native UTM projection -- highest possible quality, no reprojection blur.
@@ -46,7 +46,7 @@ HIRES_MAX_KM2 = None       # None = always native res. If set (e.g. 200), fires
                            # COARSE_SCALE so the mega-fires stay manageable.
 COARSE_SCALE  = 3          # meters/pixel used only for fires above HIRES_MAX_KM2
 MANIFEST_CSV = r"C:\Users\shoang12\Downloads\NAIP_fire_availability.csv"
-MANIFEST_ONLY= False       # True = build the availability table only (no image
+MANIFEST_ONLY= True        # True = build the availability table only (no image
                            # exports). Flip to False once you like the table.
 
 # --- where the GeoTIFFs go when MANIFEST_ONLY is False ---
@@ -71,8 +71,11 @@ def nearest_naip(ee_geom, date_str, direction):
     """
     Find the NAIP acquisition nearest to date_str on the given side.
     direction = 'before' or 'after'.
-    Returns (mosaic, year, acq_date, native_scale_m, native_crs).
-    Returns (None, None, None, None, None) if no NAIP exists on that side.
+    Returns (mosaic, year, date_min, date_max, native_scale_m, native_crs),
+    where date_min..date_max is the acquisition-date SPAN of that campaign
+    year's tiles over the fire (NAIP flies a region across many days, so the
+    search window should be the whole year, not a single date).
+    Returns six Nones if no NAIP exists on that side.
     """
     over_aoi = NAIP.filterBounds(ee_geom)
 
@@ -83,14 +86,12 @@ def nearest_naip(ee_geom, date_str, direction):
 
     n = coll.size().getInfo()
     if n == 0:
-        return None, None, None, None, None
+        return None, None, None, None, None, None
 
-    # Take the single nearest acquisition date, then mosaic all DOQQ tiles
-    # from that same campaign year so the perimeter is fully covered.
+    # Nearest acquisition determines the campaign year; then mosaic all DOQQ
+    # tiles from that year over the fire (they span multiple days).
     nearest = ee.Image(coll.first())
-    nearest_date = ee.Date(nearest.get("system:time_start"))
-    year     = nearest_date.get("year").getInfo()
-    acq_date = nearest_date.format("YYYY-MM-dd").getInfo()
+    year = ee.Date(nearest.get("system:time_start")).get("year").getInfo()
 
     # Native resolution + projection of the source tile -- export at THIS for
     # full quality (mosaic() otherwise defaults to a 1-degree EPSG:4326 grid).
@@ -99,8 +100,10 @@ def nearest_naip(ee_geom, date_str, direction):
     native_crs   = proj.crs().getInfo()
 
     same_year = over_aoi.filter(ee.Filter.calendarRange(year, year, "year"))
+    date_min = ee.Date(same_year.aggregate_min("system:time_start")).format("YYYY-MM-dd").getInfo()
+    date_max = ee.Date(same_year.aggregate_max("system:time_start")).format("YYYY-MM-dd").getInfo()
     mosaic = same_year.mosaic().clip(ee_geom)
-    return mosaic, year, acq_date, native_scale, native_crs
+    return mosaic, year, date_min, date_max, native_scale, native_crs
 
 
 def deliver(image, ee_geom, fire_folder, period, year, scale, crs):
@@ -174,30 +177,37 @@ def main():
 
         print(f"[{name}]  ignite={ignite_str}  contain={contain_str}")
 
-        pre_img,  pre_yr,  pre_date,  pre_scale,  pre_crs  = nearest_naip(ee_geom, ignite_str,  "before")
-        post_img, post_yr, post_date, post_scale, post_crs = nearest_naip(ee_geom, contain_str, "after")
+        pre_img,  pre_yr,  pre_min,  pre_max,  pre_scale,  pre_crs  = nearest_naip(ee_geom, ignite_str,  "before")
+        post_img, post_yr, post_min, post_max, post_scale, post_crs = nearest_naip(ee_geom, contain_str, "after")
 
         # Downsample only if this fire is bigger than the hi-res threshold.
         km2 = row["__km2"]
         downsample = HIRES_MAX_KM2 is not None and km2 > HIRES_MAX_KM2
 
+        # Acquisition span of the campaign year -- search this whole window in
+        # EarthExplorer, not a single date (tiles are flown across many days).
+        def span(lo, hi):
+            if not lo:
+                return ""
+            return lo if lo == hi else f"{lo} to {hi}"
+
         # --- availability record for this fire ---
         gap = (post_yr - pre_yr) if (pre_yr and post_yr) else ""
         manifest.append({
-            "FIRE_NAME":              row.get(NAME_FIELD),
-            "STATE":                  row.get(STATE_FIELD),
-            "ALARM_DATE":             ignite_str,
-            "CONT_DATE":              contain_str,
-            "NAIP_PreFire_Available": "yes" if pre_img  is not None else "no",
-            "NAIP_PreFire_Date":      pre_date  or "",
-            "NAIP_PreFire_Year":      pre_yr    or "",
-            "NAIP_PostFire_Available":"yes" if post_img is not None else "no",
-            "NAIP_PostFire_Date":     post_date or "",
-            "NAIP_PostFire_Year":     post_yr   or "",
-            "Pre_to_Post_Year_Gap":   gap,
+            "FIRE_NAME":               row.get(NAME_FIELD),
+            "STATE":                   row.get(STATE_FIELD),
+            "ALARM_DATE":              ignite_str,
+            "CONT_DATE":               contain_str,
+            "NAIP_PreFire_Available":  "yes" if pre_img  is not None else "no",
+            "NAIP_PreFire_Year":       pre_yr or "",
+            "NAIP_PreFire_DateRange":  span(pre_min, pre_max),
+            "NAIP_PostFire_Available": "yes" if post_img is not None else "no",
+            "NAIP_PostFire_Year":      post_yr or "",
+            "NAIP_PostFire_DateRange": span(post_min, post_max),
+            "Pre_to_Post_Year_Gap":    gap,
         })
-        print(f"  pre:  {'yes ' + str(pre_date) if pre_img is not None else 'no'}"
-              f"   post: {'yes ' + str(post_date) if post_img is not None else 'no'}")
+        print(f"  pre:  {'yes ' + span(pre_min, pre_max) if pre_img is not None else 'no'}"
+              f"   post: {'yes ' + span(post_min, post_max) if post_img is not None else 'no'}")
 
         if not MANIFEST_ONLY:
             if pre_img is not None:
