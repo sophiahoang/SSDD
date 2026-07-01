@@ -20,7 +20,9 @@ mosaic, reproject, and clip them to the perimeter automatically.
 ```
 
 1. **`naip_prepost_fire.py`** → builds `NAIP_fire_availability.csv`: for every
-   fire, which NAIP year to use for pre and post, plus exact acquisition dates.
+   fire, which NAIP year to use for pre and post, plus acquisition date ranges.
+   *This has already been run — the results are the **"NAIP Availability"**
+   spreadsheet in the **SSDD SharePoint**, so you normally start at step 2/3.*
 2. **`make_fire_aois.py`** → writes one small zipped shapefile per fire
    (`CA_fire_AOIs/<FIRE>_<year>.zip`) to upload to EarthExplorer as the search
    area.
@@ -72,6 +74,13 @@ Run any script with that env's Python, using the **full path** to the script
 ## Step-by-step workflow
 
 ### Step 1 — Build the availability table
+
+> **Already done — you can skip this step.** The availability table has already
+> been generated for this study. The results live in the **"NAIP Availability"**
+> spreadsheet in the **SSDD SharePoint**, which lists, for every fire, the pre-
+> and post-fire NAIP year and acquisition date range — everything you need to
+> pull the tiles from EarthExplorer (Step 3). Only re-run the command below if
+> you add new fires or want to regenerate the table.
 
 ```powershell
 & "C:\Users\shoang12\fire-naip-env\python.exe" "C:\Users\shoang12\SSDD\naip-fire-imagery\naip_prepost_fire.py"
