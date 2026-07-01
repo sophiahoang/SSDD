@@ -59,10 +59,11 @@ This clones the ArcGIS Python into a user-writable env at
 Afterwards, put your Cloud project id in `EE_PROJECT` inside
 `naip_prepost_fire.py`.
 
-Run any script with that env's Python:
+Run any script with that env's Python, using the **full path** to the script
+(so it works no matter which folder your PowerShell is in):
 
 ```powershell
-& "C:\Users\shoang12\fire-naip-env\python.exe" <script>.py
+& "C:\Users\shoang12\fire-naip-env\python.exe" "C:\Users\shoang12\SSDD\naip-fire-imagery\<script>.py"
 ```
 
 ---
@@ -72,7 +73,7 @@ Run any script with that env's Python:
 ### Step 1 — Build the availability table
 
 ```powershell
-& "C:\Users\shoang12\fire-naip-env\python.exe" naip_prepost_fire.py
+& "C:\Users\shoang12\fire-naip-env\python.exe" "C:\Users\shoang12\SSDD\naip-fire-imagery\naip_prepost_fire.py"
 ```
 
 With `MANIFEST_ONLY = True` this only writes `NAIP_fire_availability.csv` (one
@@ -90,7 +91,7 @@ This spreadsheet is your reference for **which years to enter in EarthExplorer**
 ### Step 2 — Make the per-fire AOIs
 
 ```powershell
-& "C:\Users\shoang12\fire-naip-env\python.exe" make_fire_aois.py
+& "C:\Users\shoang12\fire-naip-env\python.exe" "C:\Users\shoang12\SSDD\naip-fire-imagery\make_fire_aois.py"
 ```
 
 Writes `Downloads\CA_fire_AOIs\<FIRE>_<year>.zip` — one zipped, upload-ready
@@ -138,7 +139,7 @@ Get-ChildItem $f -Filter *.zip | ForEach-Object { Expand-Archive $_.FullName $f 
 ### Step 5 — Merge + clip
 
 ```powershell
-& "C:\Users\shoang12\fire-naip-env\python.exe" clip_fire_raster.py
+& "C:\Users\shoang12\fire-naip-env\python.exe" "C:\Users\shoang12\SSDD\naip-fire-imagery\clip_fire_raster.py"
 ```
 
 Outputs land in `OneDrive - Cal Poly\SSDD\NAIP_clipped\<FIRE>_<year>_pre_clip.tif`
