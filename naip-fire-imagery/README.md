@@ -84,10 +84,14 @@ row per fire) — it does **not** download imagery. Columns:
 |-------|---------|
 | `NAIP_PreFire_Available` / `NAIP_PostFire_Available` | yes / no |
 | `NAIP_PreFire_Year` / `NAIP_PostFire_Year` | the NAIP campaign year to download |
-| `NAIP_PreFire_Date` / `NAIP_PostFire_Date` | exact acquisition date |
+| `NAIP_PreFire_DateRange` / `NAIP_PostFire_DateRange` | acquisition-date **span** of that year's tiles |
 | `Pre_to_Post_Year_Gap` | years between the pre and post flights |
 
 This spreadsheet is your reference for **which years to enter in EarthExplorer**.
+The `DateRange` is the span across which the fire's tiles were flown (NAIP
+covers a region over many days) — it's *not* a search window to narrow to. Set
+EarthExplorer to the **whole year**; the range is just so you know when the
+imagery was captured.
 
 ### Step 2 — Make the per-fire AOIs
 
