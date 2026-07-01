@@ -1,60 +1,198 @@
 # NAIP Pre-/Post-Fire Imagery
 
-Python tooling to pull **NAIP aerial imagery** before and after wildfires,
-using a fire-perimeter shapefile and Google Earth Engine (GEE).
+Tooling to assemble high-resolution **NAIP aerial imagery** (60 cm where
+available) from *before* and *after* each wildfire in a study, clipped to the
+fire perimeter.
 
-For each fire it finds the nearest NAIP acquisition *before* ignition
-(pre-fire) and *after* containment (post-fire), records availability and
-acquisition dates to a CSV, and (optionally) exports a GeoTIFF clipped to
-each fire perimeter.
+The imagery itself is downloaded by hand from **USGS EarthExplorer** (that's
+where the full-quality original tiles live). The scripts here do everything
+around that: figure out *which* NAIP years each fire needs, hand you a ready-to-
+upload search area for each fire, and — once you've downloaded the tiles —
+mosaic, reproject, and clip them to the perimeter automatically.
+
+## The big picture
+
+```
+                                             ┌── you do this by hand ──┐
+ fire perimeters        availability CSV      EarthExplorer download      clipped rasters
+ (shapefile)   ──▶  +   AOI zips per fire ──▶ (upload AOI, enter dates, ──▶ per fire, pre & post
+                        (the scripts)          bulk-download tiles)         (the script)
+```
+
+1. **`naip_prepost_fire.py`** → builds `NAIP_fire_availability.csv`: for every
+   fire, which NAIP year to use for pre and post, plus exact acquisition dates.
+2. **`make_fire_aois.py`** → writes one small zipped shapefile per fire
+   (`CA_fire_AOIs/<FIRE>_<year>.zip`) to upload to EarthExplorer as the search
+   area.
+3. **You** download the NAIP tiles from EarthExplorer (see workflow below).
+4. **`clip_fire_raster.py`** → mosaics each fire's tiles, reprojects them to the
+   fire's native UTM zone, and clips to the perimeter.
 
 ## Why the dates matter
 
-NAIP is flown roughly **every 2 years**, in summer only. So "pre" and "post"
-are the nearest available flights, not the days around the fire. The
-availability table reports the exact acquisition date and the pre→post year
-gap so you can judge how much regrowth each post-fire image may include.
+NAIP is flown roughly **every 2 years**, in summer only, so "pre" and "post"
+are the nearest flights, not the days around the fire. Also, **60 cm imagery
+only exists for recent years** — in California ~2018 onward is 60 cm, earlier
+years are 1 m, and the oldest (≈2009 and before) can be 1–2 m. The availability
+CSV reports the exact year/date chosen so you know what resolution to expect.
+
+---
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `naip_prepost_fire.py` | main script (build availability CSV + export GeoTIFFs) |
-| `setup.ps1` | one-time env setup: clone ArcGIS Python, install packages, GEE auth |
+| `setup.ps1` | one-time environment setup (clone Python env, install packages, GEE auth) |
+| `naip_prepost_fire.py` | build the availability CSV (which NAIP year per fire, pre & post) |
+| `make_fire_aois.py` | split fires into per-fire AOI zips for EarthExplorer |
+| `clip_fire_raster.py` | **mosaic + reproject-to-UTM + clip** the downloaded tiles |
 
-## Setup
+## One-time setup
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\setup.ps1
 ```
 
-Then open `naip_prepost_fire.py` and set:
-- `EE_PROJECT` — your Google Cloud / Earth Engine project id
-- `INPUT_PATH` — path to your fire-perimeter shapefile
-- `STATE_FILTER` — e.g. `["CA"]`, or `None` for all fires
+This clones the ArcGIS Python into a user-writable env at
+`C:\Users\shoang12\fire-naip-env`, installs `earthengine-api`, `geemap`,
+`geedim`, and `gdal`/`rasterio`, and runs Google Earth Engine authentication.
+Afterwards, put your Cloud project id in `EE_PROJECT` inside
+`naip_prepost_fire.py`.
 
-## Run
+Run any script with that env's Python:
+
+```powershell
+& "C:\Users\shoang12\fire-naip-env\python.exe" <script>.py
+```
+
+---
+
+## Step-by-step workflow
+
+### Step 1 — Build the availability table
 
 ```powershell
 & "C:\Users\shoang12\fire-naip-env\python.exe" naip_prepost_fire.py
 ```
 
-- `MANIFEST_ONLY = True` (default): writes the availability CSV only — fast.
-- `MANIFEST_ONLY = False`: also queues clipped GeoTIFF exports to Google Drive.
-
-## Output
-
-`NAIP_fire_availability.csv` — one row per fire:
+With `MANIFEST_ONLY = True` this only writes `NAIP_fire_availability.csv` (one
+row per fire) — it does **not** download imagery. Columns:
 
 | Field | Meaning |
 |-------|---------|
 | `NAIP_PreFire_Available` / `NAIP_PostFire_Available` | yes / no |
+| `NAIP_PreFire_Year` / `NAIP_PostFire_Year` | the NAIP campaign year to download |
 | `NAIP_PreFire_Date` / `NAIP_PostFire_Date` | exact acquisition date |
-| `NAIP_PreFire_Year` / `NAIP_PostFire_Year` | campaign year |
-| `Pre_to_Post_Year_Gap` | years between the two flights |
+| `Pre_to_Post_Year_Gap` | years between the pre and post flights |
+
+This spreadsheet is your reference for **which years to enter in EarthExplorer**.
+
+### Step 2 — Make the per-fire AOIs
+
+```powershell
+& "C:\Users\shoang12\fire-naip-env\python.exe" make_fire_aois.py
+```
+
+Writes `Downloads\CA_fire_AOIs\<FIRE>_<year>.zip` — one zipped, upload-ready
+shapefile per fire (named with the fire's **ignition year**, so the two
+`CREEK`/`VALLEY` fires stay distinct).
+
+### Step 3 — Download the NAIP tiles from EarthExplorer (manual)
+
+For **each fire**, and **once for pre + once for post**:
+
+1. Go to **https://earthexplorer.usgs.gov** and log in.
+2. **Search Criteria → Shapefile tab → upload** `CA_fire_AOIs\<FIRE>_<year>.zip`.
+3. **Date Range** → set it to that fire's year from the availability CSV
+   (e.g. pre = `01/01/2020`–`12/31/2020`, then post = `01/01/2022`–`12/31/2022`).
+4. **Data Sets → Aerial Imagery → NAIP**.
+5. **Results** → add **every** returned tile to **Bulk Download**
+   (the 🛒 icon), then run the **Bulk Download** — download **all** tiles.
+   A large fire needs many DOQQ tiles; a partial set gives a partial clip.
+
+> Tip: to know exactly how many tiles a fire needs (and their IDs), query Earth
+> Engine for the fire — `USDA/NAIP/DOQQ` filtered to the perimeter and year
+> returns the precise tile list, so your download is never short a tile.
+
+### Step 4 — Organize the tiles
+
+Create one folder per fire+period under `Downloads\NAIP_TILES\`, named
+`<FIRE>_<year>_pre` / `<FIRE>_<year>_post` (the `<FIRE>_<year>` part must match
+the AOI zip name so the script finds the perimeter):
+
+```
+NAIP_TILES\
+    ZOGG_2020_pre\    <- the 2020 tiles for Zogg
+    ZOGG_2020_post\   <- the 2022 tiles for Zogg
+    BOBCAT_2020_post\ ...
+```
+
+The actual `.tif`/`.jp2` files must sit **directly** in the folder — not still
+inside a `.ZIP`. To unzip a folder of EarthExplorer archives:
+
+```powershell
+$f = "C:\Users\shoang12\Downloads\NAIP_TILES\ZOGG_2020_post"
+Get-ChildItem $f -Filter *.zip | ForEach-Object { Expand-Archive $_.FullName $f -Force; Remove-Item $_.FullName }
+```
+
+### Step 5 — Merge + clip
+
+```powershell
+& "C:\Users\shoang12\fire-naip-env\python.exe" clip_fire_raster.py
+```
+
+Outputs land in `OneDrive - Cal Poly\SSDD\NAIP_clipped\<FIRE>_<year>_pre_clip.tif`
+(and `_post_clip.tif`). Re-running skips fires already clipped, so you can add
+fires and re-run freely.
+
+---
+
+## How `clip_fire_raster.py` works
+
+For every `<FIRE>_<year>[_pre|_post]` subfolder of `NAIP_TILES`, in a single
+`gdal.Warp` pass (streamed to disk, so file size isn't limited by RAM):
+
+1. **Match the perimeter** — the folder's `<FIRE>_<year>` key is matched to the
+   fire in the perimeter shapefile (a `_pre`/`_post` suffix still matches).
+2. **Mosaic** all the tiles in the folder.
+3. **Reproject** to the fire's native **NAD83 / UTM** zone (derived from the
+   perimeter centroid), at 0.6 m. Tiles already in that UTM zone are copied
+   nearest-neighbor (no resampling/blur); off-projection tiles (e.g. NAIP
+   JPEG2000 delivered in Web Mercator) are cubic-resampled. This guarantees the
+   pre and post rasters share the same CRS, resolution, and pixel grid — so they
+   overlay exactly for change detection.
+4. **Clip** to the perimeter (`cropToCutline`), writing a compressed BigTIFF.
+
+Fires already clipped are skipped unless `OVERWRITE = True`; a failing fire is
+reported and the batch continues; partial outputs are removed on failure.
+
+### Config (top of the file)
+
+| Setting | Meaning |
+|---------|---------|
+| `TILES_ROOT` | parent folder holding the per-fire tile subfolders |
+| `PERIM_PATH` | the fire-perimeter shapefile (buffered perimeters) |
+| `OUT_DIR` | where the clipped GeoTIFFs are written |
+| `OUT_RES` | output pixel size in metres (0.6 = native 60 cm) |
+| `OVERWRITE` | `False` = resume (skip done); `True` = re-clip everything |
+
+---
+
+## Notes & gotchas
+
+- **Download *all* tiles** for a fire — a partial folder produces a clip that
+  only covers part of the perimeter.
+- **Folder names must match** `<FIRE>_<year>` (the AOI/perimeter key) plus an
+  optional `_pre`/`_post`, or the script reports "no matching perimeter."
+- **Very large clips** (multi-GB) may appear blank in QGIS until you **build
+  pyramids/overviews**, or if the canvas is zoomed elsewhere (use *Zoom to
+  Layer*).
+- The output raster is 4-band **R, G, B, NIR**; view natural color as bands
+  1-2-3.
 
 ## Requirements
 
-- ArcGIS Pro Python (provides `geopandas`)
-- `earthengine-api`, `geemap` (installed by `setup.ps1`)
+- ArcGIS Pro Python (provides `geopandas`, `rasterio`, `gdal`)
+- `earthengine-api`, `geemap`, `geedim` (installed by `setup.ps1`)
 - A Google Earth Engine account with a registered Cloud project
+- A USGS EarthExplorer (ERS) account for downloading the tiles
