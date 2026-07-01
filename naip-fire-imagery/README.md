@@ -25,7 +25,8 @@ mosaic, reproject, and clip them to the perimeter automatically.
    spreadsheet in the **SSDD SharePoint**, so you normally start at step 2/3.*
 2. **`make_fire_aois.py`** → writes one small zipped shapefile per fire
    (`CA_fire_AOIs/<FIRE>_<year>.zip`) to upload to EarthExplorer as the search
-   area.
+   area. *Also already run — the zips are in the **NAIP folder in SSDD
+   SharePoint** alongside the availability spreadsheet.*
 3. **You** download the NAIP tiles from EarthExplorer (see workflow below).
 4. **`clip_fire_raster.py`** → mosaics each fire's tiles, reprojects them to the
    fire's native UTM zone, and clips to the perimeter.
@@ -103,6 +104,11 @@ EarthExplorer to the **whole year**; the range is just so you know when the
 imagery was captured.
 
 ### Step 2 — Make the per-fire AOIs
+
+> **Already done — you can skip this step.** The per-fire AOI zips have already
+> been generated and live in the **NAIP folder in the SSDD SharePoint**. Just
+> grab the `<FIRE>_<year>.zip` you need and upload it to EarthExplorer in
+> Step 3. Only re-run the command below if you add new fires.
 
 ```powershell
 & "C:\Users\shoang12\fire-naip-env\python.exe" "C:\Users\shoang12\SSDD\naip-fire-imagery\make_fire_aois.py"
