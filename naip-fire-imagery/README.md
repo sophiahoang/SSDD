@@ -128,7 +128,7 @@ For **each fire**, and **once for pre + once for post**:
    (e.g. pre = `01/01/2020`–`12/31/2020`, then post = `01/01/2022`–`12/31/2022`).
 4. **Data Sets → Aerial Imagery → NAIP**.
 5. **Results** → add **every** returned tile to **Bulk Download**
-   (the 🛒 icon), then run the **Bulk Download** — download **all** tiles.
+   (the 📦 icon), then run the **Bulk Download** — download **all** tiles.
    A large fire needs many DOQQ tiles; a partial set gives a partial clip.
 
 > Tip: to know exactly how many tiles a fire needs (and their IDs), query Earth
