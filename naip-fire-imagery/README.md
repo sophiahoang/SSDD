@@ -45,6 +45,7 @@ CSV reports the exact year/date chosen so you know what resolution to expect.
 | `setup.ps1` | one-time environment setup (clone Python env, install packages, GEE auth) |
 | `naip_prepost_fire.py` | build the availability CSV (which NAIP year per fire, pre & post) |
 | `make_fire_aois.py` | split fires into per-fire AOI zips for EarthExplorer |
+| `check_tiles.py` | **verify each tile folder is complete** (have vs. need) before clipping |
 | `clip_fire_raster.py` | **mosaic + reproject-to-UTM + clip** the downloaded tiles |
 
 ## One-time setup
@@ -135,6 +136,20 @@ inside a `.ZIP`. To unzip a folder of EarthExplorer archives:
 $f = "C:\Users\shoang12\Downloads\NAIP_TILES\ZOGG_2020_post"
 Get-ChildItem $f -Filter *.zip | ForEach-Object { Expand-Archive $_.FullName $f -Force; Remove-Item $_.FullName }
 ```
+
+### Step 4.5 — Verify the folders are complete (recommended)
+
+Partial downloads are the #1 cause of a bad clip (a folder short a few tiles
+produces a mostly-empty raster). Check every folder against what Earth Engine
+says the fire needs:
+
+```powershell
+& "C:\Users\shoang12\fire-naip-env\python.exe" "C:\Users\shoang12\SSDD\naip-fire-imagery\check_tiles.py"
+```
+
+It prints `have / need` per folder, lists any **missing** tile IDs to download,
+flags **extra** tiles that aren't part of the fire, and writes
+`Downloads\NAIP_tile_check.csv`. Fix any `MISSING` folders before clipping.
 
 ### Step 5 — Merge + clip
 
