@@ -20,7 +20,6 @@ Run with the fire-naip env:
 """
 import glob
 import os
-import tempfile
 
 import geopandas as gpd
 from osgeo import gdal, osr
@@ -75,9 +74,11 @@ def src_epsg(tile):
 
 
 def warp_clip(tiles, perim_subset, out_path, target_epsg):
-    # Cutline in WGS84 (gdal reprojects it to the target as needed).
+    # Cutline in WGS84 (gdal reprojects it to the target as needed). Use a
+    # per-fire filename next to the output so parallel/repeat runs never
+    # collide on a shared temp file.
     perim_wgs84 = perim_subset.to_crs("EPSG:4326")
-    tmp_cut = os.path.join(tempfile.gettempdir(), "cutline_tmp.geojson")
+    tmp_cut = out_path + ".cutline.geojson"
     if os.path.exists(tmp_cut):
         os.remove(tmp_cut)
     perim_wgs84.to_file(tmp_cut, driver="GeoJSON")
@@ -96,7 +97,8 @@ def warp_clip(tiles, perim_subset, out_path, target_epsg):
         creationOptions=["COMPRESS=DEFLATE", "BIGTIFF=YES", "TILED=YES"],
     )
     gdal.Warp(out_path, tiles, options=opts)
-    os.remove(tmp_cut)
+    if os.path.exists(tmp_cut):
+        os.remove(tmp_cut)
 
     ds = gdal.Open(out_path)
     return ds.RasterXSize, ds.RasterYSize, resample
