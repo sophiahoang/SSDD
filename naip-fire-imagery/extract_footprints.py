@@ -23,6 +23,7 @@ CLIP_DIR  = r"C:\Users\shoang12\OneDrive - Cal Poly\SSDD\NAIP_clipped"
 DINS_DIR  = r"C:\Users\shoang12\Downloads\dins_by_fire"      # gate: only fires with DINS
 MODEL     = r"C:\Users\shoang12\Downloads\usa_building_footprints.dlpk"
 OUT_DIR   = r"C:\Users\shoang12\OneDrive - Cal Poly\SSDD\footprints"
+ONLY      = None         # optional: limit to a list of keys e.g. ["ZOGG_2020"]; None = all DINS fires
 THRESHOLD = 0.5          # detection confidence (lower = more buildings, more false positives)
 TOLERANCE = 0.6          # regularize tolerance (m); ~1 NAIP pixel
 OVERWRITE = False        # skip fires already extracted
@@ -54,6 +55,8 @@ def main():
     for clip in clips:
         key = fire_key(os.path.basename(clip))
 
+        if ONLY and key not in ONLY:
+            continue
         if not os.path.exists(os.path.join(DINS_DIR, key + ".geojson")):
             print(f"[{key}] no DINS -- skipping")
             skipped += 1

@@ -50,6 +50,10 @@ CSV reports the exact year/date chosen so you know what resolution to expect.
 | `make_fire_aois.py` | split fires into per-fire AOI zips for EarthExplorer |
 | `check_tiles.py` | **verify each tile folder is complete** (have vs. need) before clipping |
 | `clip_fire_raster.py` | **mosaic + reproject-to-UTM + clip** the downloaded tiles |
+| `split_dins.py` | split the CAL FIRE DINS points into one GeoJSON per fire |
+| `extract_footprints.py` | **deep-learning building footprints** from pre-fire clips (arcpy) |
+| `join_dins_to_footprints.py` | join DINS damage onto the footprints → per-fire buildings |
+| `run_footprints.ps1` | one command that runs extract + join across both envs |
 
 ## One-time setup
 
@@ -213,6 +217,69 @@ reported and the batch continues; partial outputs are removed on failure.
 
 ---
 
+## Building footprints + DINS damage (from the pre-fire clips)
+
+Turns each **pre-fire** clip into per-fire **building footprints tagged with DINS
+damage** — the input to the SSDD analysis. It runs only for fires that have
+DINS, so uninspected fires are skipped automatically.
+
+### Two environments (important)
+
+`arcpy` and `geopandas`/`gdal` **cannot share one process** — importing GDAL-based
+libraries breaks arcpy's native DLLs. So the two stages use two interpreters:
+
+| Stage | Script | Interpreter |
+|-------|--------|-------------|
+| Deep-learning footprints | `extract_footprints.py` | **base** `arcgispro-py3` (arcpy + torch) |
+| DINS damage join | `join_dins_to_footprints.py` | **`fire-naip`** (geopandas) |
+
+### One-time model download
+
+Download Esri's **"Building Footprint Extraction – USA"** deep learning package
+(`.dlpk`) from ArcGIS Living Atlas and point `MODEL` (in `extract_footprints.py`)
+at it. It's a Mask R-CNN; its `.emd` sets `ExtractBands:[0,1,2]`, so it uses the
+clip's **RGB** bands and ignores NIR automatically.
+
+### Prep the DINS points (once)
+
+```powershell
+& "C:\Users\shoang12\fire-naip-env\python.exe" "C:\Users\shoang12\SSDD\naip-fire-imagery\split_dins.py"
+```
+
+Splits the CAL FIRE DINS layer into `Downloads\dins_by_fire\<FIRE>_<year>.geojson`.
+The default `METHOD="hybrid"` gates points by incident **name** (with an alias map
+for complex roll-ups like Hennessey/Walbridge → "LNU", Castle → "SQF") and then
+clips by **geometry** — so a neighbouring same-year fire's points never bleed into
+a fire that has no DINS of its own.
+
+### Run the footprint pipeline
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "C:\Users\shoang12\SSDD\naip-fire-imagery\run_footprints.ps1"
+```
+
+This runs, in order:
+1. **`extract_footprints.py`** — for each `*_pre_clip.tif` **that has DINS**, runs
+   the model on the GPU (`Detect Objects Using Deep Learning`) and regularizes the
+   shapes → `footprints\<FIRE>_<year>_pre_footprints.shp`.
+2. **`join_dins_to_footprints.py`** — assigns each DINS point to the nearest
+   footprint (≤ `TOLERANCE` m, most-severe damage wins) and writes
+   `buildings\<FIRE>_<year>_buildings.gpkg` (layer `buildings_raw`) carrying
+   `DAMAGE` / `STRUCTURETYPE`.
+
+Fires already done are skipped, so you can extract in batches. **Heads-up:** DL
+inference is heavy — small clips (~3 GB) take ~30–60 min on GPU, big ones
+(8–11 GB) several hours; the full set is an overnight run.
+
+### Accuracy note
+
+The pretrained model is generic. For the accuracy ceiling, **fine-tune on
+LARIAC** (the LA-County fires have both pre-fire NAIP and authoritative LARIAC
+footprints — ideal training labels) and re-run. Tune `THRESHOLD` for the
+precision/recall trade-off in the meantime.
+
+---
+
 ## Notes & gotchas
 
 - **Download *all* tiles** for a fire — a partial folder produces a clip that
@@ -228,6 +295,10 @@ reported and the batch continues; partial outputs are removed on failure.
 ## Requirements
 
 - ArcGIS Pro Python (provides `geopandas`, `rasterio`, `gdal`)
-- `earthengine-api`, `geemap`, `geedim` (installed by `setup.ps1`)
+- `earthengine-api`, `geemap`, `geedim` (installed by `setup.ps1`) in the `fire-naip` env
 - A Google Earth Engine account with a registered Cloud project
 - A USGS EarthExplorer (ERS) account for downloading the tiles
+- For the footprint step: ArcGIS Pro with the **Image Analyst** (and 3D Analyst
+  for regularize) extensions, the deep-learning libraries in the **base**
+  `arcgispro-py3` env, a CUDA GPU, and the Building Footprint `.dlpk`
+- CAL FIRE DINS point layer (public) for the damage join
