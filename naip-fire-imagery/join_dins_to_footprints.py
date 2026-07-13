@@ -24,7 +24,7 @@ FOOT_SUFFIX = "_pre_footprints.shp"
 DINS_DIR    = r"C:\Users\shoang12\Downloads\dins_by_fire"
 OUT_DIR     = r"C:\Users\shoang12\OneDrive - Cal Poly\SSDD\buildings"
 OUT_LAYER   = "buildings_raw"      # layer name (matches the example gpkg)
-TOLERANCE   = 8.0                  # max metres from a DINS point to a footprint
+TOLERANCE   = 15.0                 # max metres from a DINS point to a footprint
 
 # Most-severe damage wins when several DINS points map to one building.
 SEVERITY = {"Destroyed (>50%)": 4, "Major (25-50%)": 3, "Minor (10-25%)": 2,

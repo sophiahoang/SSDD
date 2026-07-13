@@ -24,7 +24,7 @@ DINS_DIR  = r"C:\Users\shoang12\Downloads\dins_by_fire"      # gate: only fires 
 MODEL     = r"C:\Users\shoang12\Downloads\usa_building_footprints.dlpk"
 OUT_DIR   = r"C:\Users\shoang12\OneDrive - Cal Poly\SSDD\footprints"
 ONLY      = None         # optional: limit to a list of keys e.g. ["ZOGG_2020"]; None = all DINS fires
-THRESHOLD = 0.5          # detection confidence (lower = more buildings, more false positives)
+THRESHOLD = 0.3          # detection confidence (lower = more buildings, more false positives)
 TOLERANCE = 0.6          # regularize tolerance (m); ~1 NAIP pixel
 OVERWRITE = False        # skip fires already extracted
 # ---------------------------------------------------------------------------
