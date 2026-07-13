@@ -53,6 +53,8 @@ CSV reports the exact year/date chosen so you know what resolution to expect.
 | `split_dins.py` | split the CAL FIRE DINS points into one GeoJSON per fire |
 | `fetch_ms_buildings.py` | **Microsoft building footprints** per fire (recommended source) |
 | `extract_footprints.py` | deep-learning building footprints from pre-fire clips (arcpy) |
+| `export_training_data.py` | export NAIP+label chips for fine-tuning (arcpy) |
+| `train_footprint_model.py` | fine-tune a NAIP-specific Mask R-CNN (arcgis.learn) |
 | `join_dins_to_footprints.py` | join DINS damage onto the footprints → per-fire buildings |
 | `run_footprints.ps1` | one command that runs extract + join across both envs |
 
@@ -247,6 +249,27 @@ unless you need footprints at the exact pre-fire date somewhere MS doesn't cover
 Microsoft's tiles (cached in `Downloads\ms_buildings_cache`), clips to the
 perimeter, and reprojects to the fire's UTM zone. Both steps run in the
 `fire-naip` env — no arcpy, no GPU.
+
+### Fine-tuning a NAIP-specific model (to beat Microsoft)
+
+The generic Esri model underperforms MS on rural NAIP (~47% vs ~74% DINS match)
+because it isn't tuned to NAIP and ignores the **NIR band**. A model **fine-tuned
+on NAIP** can exceed MS: NIR cleanly separates rooftops from vegetation (MS is
+RGB-only), and NAIP is date-accurate to the pre-fire flight. Run in the **base**
+env:
+
+```powershell
+# 1. export image+label chips (needs building labels: LARIAC / hand-digitized / MS)
+& "...\arcgispro-py3\python.exe" "...\naip-fire-imagery\export_training_data.py"
+# 2. fine-tune Mask R-CNN from Esri's pretrained weights (GPU, hours)
+& "...\arcgispro-py3\python.exe" "...\naip-fire-imagery\train_footprint_model.py"
+```
+
+Then point `MODEL` in `extract_footprints.py` at the saved `.dlpk` and run it on
+all fires. **Labels matter:** to *beat* MS you need better-than-MS labels
+(LARIAC for LA fires, or a modest hand-digitized set spanning urban + rural);
+training on MS footprints only reaches ~MS quality. This is a one-time,
+GPU-heavy training investment that then runs automatically.
 
 ### Deep-learning alternative — two environments (important)
 
