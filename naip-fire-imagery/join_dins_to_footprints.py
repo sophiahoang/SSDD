@@ -19,10 +19,12 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 # CONFIG
 # ---------------------------------------------------------------------------
-FOOT_DIR    = r"C:\Users\shoang12\OneDrive - Cal Poly\SSDD\footprints"
+# FOOT_DIR / OUT_DIR can be overridden via env vars (used by the source-specific
+# orchestrators, e.g. run_hybrid.ps1 points them at the hybrid folders).
+FOOT_DIR    = os.environ.get("FOOT_DIR", r"C:\Users\shoang12\OneDrive - Cal Poly\SSDD\footprints")
 FOOT_SUFFIX = "_pre_footprints.shp"
 DINS_DIR    = r"C:\Users\shoang12\Downloads\dins_by_fire"
-OUT_DIR     = r"C:\Users\shoang12\OneDrive - Cal Poly\SSDD\buildings"
+OUT_DIR     = os.environ.get("OUT_DIR", r"C:\Users\shoang12\OneDrive - Cal Poly\SSDD\buildings")
 OUT_LAYER   = "buildings_raw"      # layer name (matches the example gpkg)
 TOLERANCE   = 15.0                 # max metres from a DINS point to a footprint
 

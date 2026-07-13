@@ -52,6 +52,8 @@ CSV reports the exact year/date chosen so you know what resolution to expect.
 | `clip_fire_raster.py` | **mosaic + reproject-to-UTM + clip** the downloaded tiles |
 | `split_dins.py` | split the CAL FIRE DINS points into one GeoJSON per fire |
 | `fetch_ms_buildings.py` | **Microsoft building footprints** per fire (recommended source) |
+| `hybrid_footprints.py` | refine MS footprints with SAM box-prompts on NAIP (sam-env) |
+| `run_hybrid.ps1` | one command: MS -> SAM refine -> DINS join |
 | `extract_footprints.py` | deep-learning building footprints from pre-fire clips (arcpy) |
 | `export_training_data.py` | export NAIP+label chips for fine-tuning (arcpy) |
 | `train_footprint_model.py` | fine-tune a NAIP-specific Mask R-CNN (arcgis.learn) |
@@ -249,6 +251,24 @@ unless you need footprints at the exact pre-fire date somewhere MS doesn't cover
 Microsoft's tiles (cached in `Downloads\ms_buildings_cache`), clips to the
 perimeter, and reprojects to the fire's UTM zone. Both steps run in the
 `fire-naip` env — no arcpy, no GPU.
+
+### Hybrid: refine Microsoft footprints with SAM on NAIP
+
+Takes the discrete MS footprints and re-traces each boundary to the
+**date-accurate NAIP** rooftop using SAM, prompted by **one box per MS building**
+— so it keeps MS's one-polygon-per-building discreteness (no merging /
+over-segmentation) while sharpening boundaries. Needs the `sam-env` (built via
+`pip install segment-geospatial` + CUDA torch in a **separate** env from
+`fire-naip`).
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "C:\Users\shoang12\SSDD\naip-fire-imagery\run_hybrid.ps1"
+```
+
+Runs: MS fetch → `hybrid_footprints.py` (tiles the clip, SAM-refines each MS
+footprint on GPU) → DINS join → `buildings_hybrid\`. On Zogg it matched MS's
+749 discrete buildings with slightly higher DINS recall (75% vs 74%) and rooftop-
+tighter boundaries; proving it *beats* MS needs LARIAC ground truth (see below).
 
 ### Fine-tuning a NAIP-specific model (to beat Microsoft)
 
