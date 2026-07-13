@@ -28,7 +28,7 @@ STRIDE = 256
 # (4-band NAIP clip, building-label polygons). Add more fires for a stronger model.
 TRAIN_PAIRS = [
     (r"C:\Users\shoang12\OneDrive - Cal Poly\SSDD\NAIP_clipped\BOBCAT_2020_pre_clip.tif",
-     r"C:\PATH\TO\bobcat_building_labels.shp"),
+     r"C:\Users\shoang12\OneDrive - Cal Poly\SSDD\footprints\BOBCAT_2020_pre_footprints.shp"),
 ]
 # ---------------------------------------------------------------------------
 

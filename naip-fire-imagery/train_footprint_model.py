@@ -8,7 +8,24 @@ fine-tuned model across all fires -- automatically.
 Run with the BASE ArcGIS env (arcgis.learn + torch + GPU):
   & "C:/Program Files/ArcGIS/Pro/bin/Python/envs/arcgispro-py3/python.exe" train_footprint_model.py
 """
+import os
+import tempfile
+import zipfile
+
 from arcgis.learn import prepare_data, MaskRCNN
+
+
+def resolve_pretrained(path):
+    """arcgis.learn wants the .emd; a .dlpk is a zip -- extract and return its .emd."""
+    if path.lower().endswith(".dlpk"):
+        out = os.path.join(tempfile.gettempdir(), "esri_pretrained_dlpk")
+        os.makedirs(out, exist_ok=True)
+        with zipfile.ZipFile(path) as z:
+            z.extractall(out)
+        emds = [f for f in os.listdir(out) if f.lower().endswith(".emd")]
+        if emds:
+            return os.path.join(out, emds[0])
+    return path
 
 # ---------------------------------------------------------------------------
 # CONFIG
@@ -18,7 +35,7 @@ PRETRAINED  = r"C:\Users\shoang12\Downloads\usa_building_footprints.dlpk"  # fin
 OUT_NAME    = "naip_footprint_ft"
 CHIP        = 512
 BATCH       = 4          # drop to 2 if the GPU runs out of memory
-EPOCHS      = 20
+EPOCHS      = 20         # real run; use ~3 for a quick pipeline check
 VAL_SPLIT   = 0.15       # held-out validation fraction
 # ---------------------------------------------------------------------------
 
@@ -32,7 +49,7 @@ def main():
     # Fine-tune from Esri's pretrained weights (falls back to a fresh backbone
     # if the .dlpk can't be loaded as a starting point).
     try:
-        model = MaskRCNN(data, pretrained_path=PRETRAINED)
+        model = MaskRCNN(data, pretrained_path=resolve_pretrained(PRETRAINED))
         print("initialized from pretrained:", PRETRAINED)
     except Exception as e:
         print("pretrained init failed, training from backbone instead:", e)
