@@ -51,7 +51,8 @@ CSV reports the exact year/date chosen so you know what resolution to expect.
 | `check_tiles.py` | **verify each tile folder is complete** (have vs. need) before clipping |
 | `clip_fire_raster.py` | **mosaic + reproject-to-UTM + clip** the downloaded tiles |
 | `split_dins.py` | split the CAL FIRE DINS points into one GeoJSON per fire |
-| `extract_footprints.py` | **deep-learning building footprints** from pre-fire clips (arcpy) |
+| `fetch_ms_buildings.py` | **Microsoft building footprints** per fire (recommended source) |
+| `extract_footprints.py` | deep-learning building footprints from pre-fire clips (arcpy) |
 | `join_dins_to_footprints.py` | join DINS damage onto the footprints → per-fire buildings |
 | `run_footprints.ps1` | one command that runs extract + join across both envs |
 
@@ -217,13 +218,37 @@ reported and the batch continues; partial outputs are removed on failure.
 
 ---
 
-## Building footprints + DINS damage (from the pre-fire clips)
+## Building footprints + DINS damage
 
-Turns each **pre-fire** clip into per-fire **building footprints tagged with DINS
-damage** — the input to the SSDD analysis. It runs only for fires that have
-DINS, so uninspected fires are skipped automatically.
+Produces per-fire **building footprints tagged with DINS damage** — the input to
+the SSDD analysis. Runs only for fires that have DINS.
 
-### Two environments (important)
+### Two footprint sources
+
+| Source | Script | Notes |
+|--------|--------|-------|
+| **Microsoft Building Footprints** (recommended) | `fetch_ms_buildings.py` | free vector footprints, no GPU, ~1–2 min/fire |
+| Deep learning on pre-fire NAIP | `extract_footprints.py` | Esri Mask R-CNN; only where existing footprints are absent |
+
+On a rural test fire (Zogg) MS matched **74%** of DINS structures with cleaner
+geometry, vs **47%** for the generic DL model — and ~30× faster. Prefer MS
+unless you need footprints at the exact pre-fire date somewhere MS doesn't cover
+(then DL, ideally fine-tuned on LARIAC). Both write
+`footprints\<FIRE>_<year>_pre_footprints.shp`, then the same join runs.
+
+### Microsoft footprints (recommended)
+
+```powershell
+& "C:\Users\shoang12\fire-naip-env\python.exe" "C:\Users\shoang12\SSDD\naip-fire-imagery\fetch_ms_buildings.py"
+& "C:\Users\shoang12\fire-naip-env\python.exe" "C:\Users\shoang12\SSDD\naip-fire-imagery\join_dins_to_footprints.py"
+```
+
+`fetch_ms_buildings.py` finds the level-9 quadkeys covering each fire, downloads
+Microsoft's tiles (cached in `Downloads\ms_buildings_cache`), clips to the
+perimeter, and reprojects to the fire's UTM zone. Both steps run in the
+`fire-naip` env — no arcpy, no GPU.
+
+### Deep-learning alternative — two environments (important)
 
 `arcpy` and `geopandas`/`gdal` **cannot share one process** — importing GDAL-based
 libraries breaks arcpy's native DLLs. So the two stages use two interpreters:
