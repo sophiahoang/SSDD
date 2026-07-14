@@ -53,7 +53,8 @@ CSV reports the exact year/date chosen so you know what resolution to expect.
 | `split_dins.py` | split the CAL FIRE DINS points into one GeoJSON per fire |
 | `fetch_ms_buildings.py` | **Microsoft building footprints** per fire (recommended source) |
 | `hybrid_footprints.py` | refine MS footprints with SAM box-prompts on NAIP (sam-env) |
-| `run_hybrid.ps1` | one command: MS -> SAM refine -> DINS join |
+| `regularize_footprints.py` | square footprints to clean rectangles (arcpy) |
+| `run_hybrid.ps1` | one command: MS -> SAM refine -> regularize -> DINS join |
 | `extract_footprints.py` | deep-learning building footprints from pre-fire clips (arcpy) |
 | `export_training_data.py` | export NAIP+label chips for fine-tuning (arcpy) |
 | `train_footprint_model.py` | fine-tune a NAIP-specific Mask R-CNN (arcgis.learn) |
@@ -266,9 +267,11 @@ powershell -ExecutionPolicy Bypass -File "C:\Users\shoang12\SSDD\naip-fire-image
 ```
 
 Runs: MS fetch → `hybrid_footprints.py` (tiles the clip, SAM-refines each MS
-footprint on GPU) → DINS join → `buildings_hybrid\`. On Zogg it matched MS's
-749 discrete buildings with slightly higher DINS recall (75% vs 74%) and rooftop-
-tighter boundaries; proving it *beats* MS needs LARIAC ground truth (see below).
+footprint on GPU) → `regularize_footprints.py` (squares the jagged SAM masks to
+clean right-angled rectangles, like MS) → DINS join → `buildings_hybrid\`. On
+Zogg it matched MS's 749 discrete buildings with slightly higher DINS recall
+(75% vs 74%); after regularizing, footprint rectangularity matches MS (~0.86).
+Proving it *beats* MS needs LARIAC ground truth (see below).
 
 ### Fine-tuning a NAIP-specific model (to beat Microsoft)
 
