@@ -10,6 +10,36 @@ around that: figure out *which* NAIP years each fire needs, hand you a ready-to-
 upload search area for each fire, and — once you've downloaded the tiles —
 mosaic, reproject, and clip them to the perimeter automatically.
 
+## Start here — what this folder does
+
+Two things, for a set of wildfires:
+
+- **A · Imagery** — assemble before/after **NAIP aerial photos** for each fire,
+  clipped to the fire outline.
+- **B · Buildings** — get **building footprints** for each fire and tag them with
+  **CAL FIRE damage** data (which structures were destroyed / damaged).
+
+The building footprints are the hand-off to the **SSDD** analysis in the parent
+folder (`../SSDD.ipynb`).
+
+### Which scripts do I actually run?
+
+You don't run all of them — pick the goal:
+
+| I want… | Run (in order) |
+|---------|----------------|
+| **Imagery for a fire** | `naip_prepost_fire.py` → `make_fire_aois.py` → *(download tiles from EarthExplorer by hand)* → `check_tiles.py` → `clip_fire_raster.py` |
+| **Building footprints** *(recommended)* | `fetch_ms_buildings.py` → `join_dins_to_footprints.py` |
+| **Sharper footprints** *(optional)* | `run_hybrid.ps1` (refines the MS footprints against NAIP with AI, then squares them up) |
+| **Damage points per fire** | `split_dins.py` |
+
+**Experimental — safe to ignore:** `extract_footprints.py`,
+`export_training_data.py`, `train_footprint_model.py` are a deep-learning
+footprint approach we tested. Microsoft footprints worked better, so these are
+kept only for reference.
+
+Detailed step-by-step for each is below.
+
 ## The big picture
 
 ```
