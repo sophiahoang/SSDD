@@ -89,6 +89,7 @@ CSV reports the exact year/date chosen so you know what resolution to expect.
 | `export_training_data.py` | export NAIP+label chips for fine-tuning (arcpy) |
 | `train_footprint_model.py` | fine-tune a NAIP-specific Mask R-CNN (arcgis.learn) |
 | `join_dins_to_footprints.py` | join DINS damage onto the footprints → per-fire buildings |
+| `assess_footprint_readiness.py` | **rank fires by footprint readiness** — how many DINS structures already have an Overture footprint (which fires need the least manual work) |
 | `run_footprints.ps1` | one command that runs extract + join across both envs |
 
 ## One-time setup
