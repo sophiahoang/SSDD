@@ -89,7 +89,8 @@ CSV reports the exact year/date chosen so you know what resolution to expect.
 | `export_training_data.py` | export NAIP+label chips for fine-tuning (arcpy) |
 | `train_footprint_model.py` | fine-tune a NAIP-specific Mask R-CNN (arcgis.learn) |
 | `join_dins_to_footprints.py` | join DINS damage onto the footprints → per-fire buildings |
-| `assess_footprint_readiness.py` | **rank fires by footprint readiness** — how many DINS structures already have an Overture footprint (which fires need the least manual work) |
+| `fetch_overture_prefire.py` | **pull true pre-fire Overture footprints** from the Fused archive (date-accurate snapshots Overture's own S3 no longer keeps) |
+| `assess_footprint_readiness.py` | **rank fires by footprint readiness** — tiered pre-fire vs. latest DINS match per fire, so you know which need the least manual work (uses `fetch_overture_prefire.py`) |
 | `run_footprints.ps1` | one command that runs extract + join across both envs |
 
 ## One-time setup
