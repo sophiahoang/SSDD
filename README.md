@@ -47,8 +47,9 @@ GeoPackages + a CSV to your `output/` folder.
 
 **If you need building footprints for a wildfire first:**
 start in **[`naip-fire-imagery/`](naip-fire-imagery/README.md)** — that pipeline
-downloads the imagery, extracts footprints, and attaches damage data. Its output
-(a footprint layer per fire) is exactly what `SSDD.ipynb` takes as input.
+downloads the imagery, pulls date-accurate pre-fire footprints, and attaches
+damage data. Its output (a footprint layer per fire) is exactly what
+`SSDD.ipynb` takes as input.
 
 So the normal flow is: **`naip-fire-imagery/` → footprints → `SSDD.ipynb` → scores.**
 
