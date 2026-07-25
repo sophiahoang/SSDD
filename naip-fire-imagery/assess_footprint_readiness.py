@@ -115,6 +115,7 @@ def main():
             minx, miny, maxx, maxy = d4.total_bounds
             bbox = (minx - BBOX_PAD, miny - BBOX_PAD, maxx + BBOX_PAD, maxy + BBOX_PAD)
             dm = d.to_crs(METRIC_CRS)
+            row["dins_pts"] = len(dm)
 
             # LATEST (always)
             lb, lpct = match_pct(dm, fetch_buildings(con, latest_rel, bbox))
