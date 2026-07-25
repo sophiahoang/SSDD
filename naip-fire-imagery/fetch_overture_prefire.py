@@ -28,12 +28,14 @@ Caveats worth knowing:
     falls back to the 2024-03 release, which may be too stale to beat current
     data. LEAD_WARN_DAYS flags those.
 
-Run with the fire-naip env:
+Run with the fire-naip env (all eligible fires, or name specific ones):
   & "C:/Users/shoang12/fire-naip-env/python.exe" fetch_overture_prefire.py
+  & "C:/Users/shoang12/fire-naip-env/python.exe" fetch_overture_prefire.py MOUNTAIN AIRPORT
 """
 import datetime
 import os
 import re
+import sys
 
 import duckdb
 import geopandas as gpd
@@ -105,16 +107,18 @@ def fetch_buildings(con, rel, bbox):
 
 
 def main():
+    only = [n.upper() for n in sys.argv[1:]] or ONLY   # e.g. `... MOUNTAIN AIRPORT`
     os.makedirs(OUT_DIR, exist_ok=True)
     perim = gpd.read_file(PERIM_PATH).to_crs("EPSG:4326")
     con = connect()
     rels = building_releases(con)
     print(f"archive has {len(rels)} building releases "
-          f"({rels[0]} .. {rels[-1]})\n", flush=True)
+          f"({rels[0]} .. {rels[-1]})"
+          + (f"  |  only: {', '.join(only)}" if only else "") + "\n", flush=True)
 
     for _, row in perim.iterrows():
         name = row[PERIM_NAME]
-        if ONLY and name not in ONLY:
+        if only and str(name).upper() not in only:
             continue
         try:
             fdate = datetime.date.fromisoformat(str(row[PERIM_DATE])[:10])
