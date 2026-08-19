@@ -44,6 +44,7 @@ FIRES = [
     ("SCU_LIGHTNING_COMPLEX", "2020"),
     ("NORTH_COMPLEX", "2020"),
     ("CZU_LIGHTNING_COMPLEX", "2020"),
+    ("CREEK", "2020"),                 # big Fresno-area Creek fire (the 2017 one is small)
 ]
 # ---------------------------------------------------------------------------
 

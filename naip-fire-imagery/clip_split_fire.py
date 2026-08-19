@@ -53,6 +53,7 @@ FIRES = [
     "SCU_LIGHTNING_COMPLEX_2020",
     "NORTH_COMPLEX_2020",
     "CZU_LIGHTNING_COMPLEX_2020",
+    "CREEK_2020",
 ]
 # ---------------------------------------------------------------------------
 
