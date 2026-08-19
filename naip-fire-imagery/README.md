@@ -165,6 +165,29 @@ failing fire is reported and the batch continues.
 | `OUT_RES` | output pixel size in metres (0.6 = native 60 cm) |
 | `OVERWRITE` | `False` = resume (skip done); `True` = re-clip everything |
 
+### Oversized fires (too big to download/clip whole)
+
+A few fires are too large to upload as one EarthExplorer AOI or clip in one mosaic
+(August Complex, Dixie, the lightning complexes). For those, split first:
+
+```powershell
+& "C:\Users\shoang12\fire-naip-env\python.exe" "C:\Users\shoang12\SSDD\naip-fire-imagery\split_large_fire_aois.py"
+```
+
+`split_large_fire_aois.py` cuts each listed fire into **equal-area portions** and
+writes, per fire: per-portion AOI zips (`<FIRE>_<year>_<portion>.zip`, upload each
+separately) and a cutline file (`<FIRE>_<year>_quadrants.gpkg`). Download each
+portion's tiles into its own folder — `NAIP_TILES\<FIRE>_<year>_<portion>_pre` —
+then clip them **one portion at a time**:
+
+```powershell
+& "C:\Users\shoang12\fire-naip-env\python.exe" "C:\Users\shoang12\SSDD\naip-fire-imagery\clip_split_fire.py"
+```
+
+You get a separate clip per portion (`<FIRE>_<year>_<portion>_pre_clip.tif`), each
+in the same NAD83/UTM grid so the portions tile back together seamlessly. Use the
+normal `clip_fire_raster.py` for all the normal-sized fires.
+
 ---
 
 ## Part B — Pre-fire footprints + DINS damage
@@ -248,6 +271,8 @@ damage wins) and writes `buildings\<FIRE>_<year>_buildings.gpkg` (layer
 | `make_fire_aois.py` | split fires into per-fire AOI zips for EarthExplorer |
 | `check_tiles.py` | **verify each tile folder is complete** (have vs. need) before clipping |
 | `clip_fire_raster.py` | **mosaic + reproject-to-UTM + clip** the downloaded tiles |
+| `split_large_fire_aois.py` | **split an oversized fire** into equal-area portions — per-portion AOI zips + a cutline file (for fires too big to download/clip whole) |
+| `clip_split_fire.py` | clip a split fire **one portion at a time** to the cutlines, giving separate manageable clips |
 | `split_dins.py` | split the CAL FIRE DINS points into one GeoJSON per fire |
 | `assess_footprint_readiness.py` | **rank fires by footprint readiness** — tiered pre-fire vs. latest DINS match, so you know which fires are ready and which source to use |
 | `fetch_overture_prefire.py` | **pull date-accurate pre-fire Overture footprints** from the Fused archive |
